@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Galileo Quiz</title>
+
+<style>
+:root{
+--bg:#08090d;
+--panel:#171922;
+--line:#343846;
+--text:#f5f5f7;
+--muted:#aeb3c0;
+--accent:#d8dbe5;
+}
+*{box-sizing:border-box}
+body{
+margin:0;
+background:radial-gradient(ellipse at top,#292c38,#08090d 65%);
+color:var(--text);
+font:16px/1.5 system-ui,sans-serif;
+min-height:100vh;
+}
+header{
+padding:22px;
+border-bottom:1px solid #ffffff20;
+letter-spacing:4px;
+font-weight:900;
+text-align:center;
+}
+main{max-width:850px;margin:45px auto;padding:15px}
+.panel{
+background:#171922ee;
+border:1px solid var(--line);
+border-radius:22px;
+padding:30px;
+box-shadow:0 20px 60px #0008;
+}
+h1{font-size:clamp(30px,6vw,48px);line-height:1.1}
+h2{font-size:25px}
+.muted{color:var(--muted)}
+label{display:block;margin-top:18px}
+input{
+width:100%;
+padding:14px;
+margin:7px 0;
+border-radius:10px;
+border:1px solid #555b69;
+background:#090b10;
+color:white;
+font-size:17px;
+}
+button{
+border:1px solid #777d89;
+background:#f0f0f3;
+color:#101116;
+padding:13px 20px;
+border-radius:11px;
+font-weight:800;
+cursor:pointer;
+font-size:15px;
+}
+button.secondary{
+background:transparent;
+color:white;
+border-color:#555b69;
+}
+button:disabled{opacity:.4}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+.grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:12px;
+margin:22px 0;
+}
+.choice{
+background:#222631;
+color:white;
+border:1px solid #454b59;
+text-align:left;
+width:100%;
+}
+.choice.selected{
+background:#41495a;
+border-color:white;
+}
+.progress{
+height:6px;
+background:#343846;
+border-radius:10px;
+margin:20px 0;
+overflow:hidden;
+}
+.progress span{
+display:block;
+height:100%;
+background:white;
+}
+.hidden{display:none!important}
+.code{
+font-size:clamp(25px,7vw,43px);
+font-weight:900;
+letter-spacing:3px;
+overflow-wrap:anywhere;
+margin:20px 0;
+}
+.result{
+background:#0c0e14;
+border:1px solid #424856;
+border-radius:15px;
+padding:20px;
+margin-top:20px;
+}
+.row{
+padding:13px 0;
+border-bottom:1px solid #343846;
+}
+.good{color:#9ee6b0}
+.bad{color:#ffaaa5}
+.small{font-size:13px;color:var(--muted)}
+@media(max-width:600px){
+.grid{grid-template-columns:1fr}
+.panel{padding:21px}
+}
+</style>
+</head>
+
+<body>
+
+<header>GALILEO / QUIZ</header>
+
+<main>
+
+<section id="start" class="panel">
+<div class="muted">TEILNEHMERBEREICH</div>
+<h1>Wie gut kennst du Galileo?</h1>
+<p>Beantworte acht Fragen über Galileo Galilei und erhalte deinen persönlichen Ergebniscode.</p>
+
+<label>Dein Name</label>
+<input id="participant" maxlength="20" placeholder="Dein Name">
+
+<div class="actions">
+<button onclick="begin()">Quiz starten</button>
+<button class="secondary" onclick="show('login')">Adminbereich</button>
+</div>
+</section>
+
+<section id="quiz" class="panel hidden">
+<div class="muted" id="counter"></div>
+<div class="progress"><span id="bar"></span></div>
+<h2 id="question"></h2>
+<div id="options" class="grid"></div>
+
+<div class="actions">
+<button id="next" onclick="advance()" disabled>Weiter</button>
+</div>
+</section>
+
+<section id="finished" class="panel hidden">
+<div class="muted">QUIZ ABGESCHLOSSEN</div>
+<h1>Dein Ergebniscode</h1>
+<p id="thanks"></p>
+
+<div class="result">
+<div class="muted">PERSÖNLICHER CODE</div>
+<div class="code" id="resultCode"></div>
+<button onclick="copyCode()">Code kopieren</button>
+</div>
+
+<p class="small">
+Gib diesen Code der Person, die dein Quiz auswertet.
+</p>
+
+<button class="secondary" onclick="show('start')">Zur Startseite</button>
+</section>
+
+<section id="login" class="panel hidden">
+<div class="muted">PRIVATER BEREICH</div>
+<h1>Admin</h1>
+<label>Admin-PIN</label>
+<input id="pin" type="password" inputmode="numeric">
+<p id="pinError" class="bad"></p>
+<div class="actions">
+<button onclick="unlock()">Anmelden</button>
+<button class="secondary" onclick="show('start')">Zurück</button>
+</div>
+</section>
+
+<section id="admin" class="panel hidden">
+<div class="muted">GALILEO QUIZ / VERWALTUNG</div>
+<h1>Ergebnis auswerten</h1>
+
+<label>Teilnehmer-Code</label>
+<input id="codeInput" placeholder="NAME-58321">
+
+<div class="actions">
+<button onclick="evaluateCode()">Auswerten</button>
+<button class="secondary" onclick="show('start')">Startseite</button>
+</div>
+
+<div id="report" class="result hidden"></div>
+</section>
+
+</main>
+
+<script>
+
+const ADMIN_PIN="4826";
+
+const questions=[
+
+{
+q:"Wer war Galileo Galilei?",
+a:["Ein Astronom, Physiker und Mathematiker","Ein König","Ein Maler","Ein Seefahrer"],
+c:0,
+why:"Galileo war ein italienischer Astronom, Physiker und Mathematiker."
+},
+
+{
+q:"In welcher Stadt wurde Galileo geboren?",
+a:["Rom","Pisa","Venedig","Mailand"],
+c:1,
+why:"Galileo wurde 1564 in Pisa geboren."
+},
+
+{
+q:"Welches Gerät verbesserte Galileo?",
+a:["Mikroskop","Kompass","Fernrohr","Thermometer"],
+c:2,
+why:"Er verbesserte das Fernrohr für seine Himmelsbeobachtungen."
+},
+
+{
+q:"Was entdeckte Galileo beim Jupiter?",
+a:["Einen neuen Ring","Einen Kometen","Einen weiteren Planeten","Vier große Monde"],
+c:3,
+why:"Er beobachtete die vier größten Jupitermonde."
+},
+
+{
+q:"Was beobachtete Galileo bei der Venus?",
+a:["Verschiedene Phasen","Einen Mond","Einen Ring","Einen Schweif"],
+c:0,
+why:"Die Venus zeigt verschiedene Phasen wie der Mond."
+},
+
+{
+q:"Mit wem geriet Galileo in Konflikt?",
+a:["Mit der NASA","Mit Vertretern der katholischen Kirche","Mit den Römern","Mit Seefahrern"],
+c:1,
+why:"Seine Unterstützung des heliozentrischen Weltbildes führte zum Konflikt."
+},
+
+{
+q:"Was bedeutet heliozentrisch?",
+a:["Die Erde steht im Mittelpunkt","Der Mond steht im Mittelpunkt","Die Sonne steht im Mittelpunkt","Der Jupiter steht im Mittelpunkt"],
+c:2,
+why:"Heliozentrisch bedeutet, dass die Sonne im Zentrum des Planetensystems steht."
+},
+
+{
+q:"Womit beschäftigte sich Galileo ebenfalls?",
+a:["Mit Dinosauriern","Mit Elektrizität","Mit Chemie","Mit Bewegung und Fallgesetzen"],
+c:3,
+why:"Er untersuchte unter anderem die Bewegung und den Fall von Körpern."
+}
+
+];
+
+let participant="";
+let index=0;
+let answers=[];
+
+function show(id){
+["start","quiz","finished","login","admin"].forEach(x=>{
+document.getElementById(x).classList.toggle("hidden",x!==id);
+});
+}
+
+function begin(){
+
+participant=document.getElementById("participant").value.trim();
+
+if(!participant){
+alert("Bitte gib deinen Namen ein.");
+return;
+}
+
+index=0;
+answers=[];
+show("quiz");
+draw();
+
+}
+
+function draw(){
+
+let q=questions[index];
+
+document.getElementById("counter").textContent=
+"FRAGE "+(index+1)+" VON "+questions.length;
+
+document.getElementById("bar").style.width=
+((index+1)/questions.length*100)+"%";
+
+document.getElementById("question").textContent=q.q;
+
+let box=document.getElementById("options");
+box.innerHTML="";
+
+q.a.forEach((answer,i)=>{
+
+let button=document.createElement("button");
+button.className="choice";
+button.textContent=String.fromCharCode(65+i)+". "+answer;
+
+button.onclick=()=>{
+
+answers[index]=i;
+
+[...box.children].forEach(b=>b.classList.remove("selected"));
+
+button.classList.add("selected");
+
+document.getElementById("next").disabled=false;
+
+};
+
+box.appendChild(button);
+
+});
+
+document.getElementById("next").disabled=answers[index]===undefined;
+
+document.getElementById("next").textContent=
+index===questions.length-1?"Quiz beenden":"Weiter";
+
+}
+
+function advance(){
+
+if(answers[index]===undefined)return;
+
+if(index<questions.length-1){
+index++;
+draw();
+}else{
+finish();
+}
+
+}
+
+// NAME UND ALLE 8 ANTWORTEN IM CODE
+
+function finish(){
+
+let packed=0;
+
+answers.forEach((answer,i)=>{
+packed|=(answer&3)<<(i*2);
+});
+
+let number=String(packed).padStart(5,"0");
+
+let safeName=participant
+.normalize("NFKD")
+.replace(/[\u0300-\u036f]/g,"")
+.replace(/[^a-zA-Z0-9]/g,"")
+.toUpperCase()
+.slice(0,12);
+
+if(!safeName)safeName="TEILNEHMER";
+
+let code=safeName+"-"+number;
+
+document.getElementById("resultCode").textContent=code;
+
+document.getElementById("thanks").textContent=
+"Danke, "+participant+"! Dein Quiz ist abgeschlossen.";
+
+show("finished");
+
+}
+
+function copyCode(){
+
+let code=document.getElementById("resultCode").textContent;
+
+if(navigator.clipboard){
+navigator.clipboard.writeText(code)
+.then(()=>alert("Code kopiert!"))
+.catch(()=>alert("Bitte den Code manuell kopieren."));
+}else{
+alert("Bitte den Code manuell kopieren.");
+}
+
+}
+
+// ADMIN
+
+function unlock(){
+
+if(document.getElementById("pin").value===ADMIN_PIN){
+show("admin");
+document.getElementById("pin").value="";
+document.getElementById("pinError").textContent="";
+}else{
+document.getElementById("pinError").textContent="Falsche PIN!";
+}
+
+}
+
+function evaluateCode(){
+
+let input=document.getElementById("codeInput").value.trim().toUpperCase();
+let report=document.getElementById("report");
+
+report.classList.remove("hidden");
+
+let match=input.match(/^([A-Z0-9]+)-(\d{5})$/);
+
+if(!match){
+report.textContent="Ungültiger Code. Beispiel: ALEX-58321";
+return;
+}
+
+let name=match[1];
+let packed=Number(match[2]);
+
+if(packed>65535){
+report.textContent="Ungültiger Zahlenteil.";
+return;
+}
+
+let decoded=[];
+
+for(let i=0;i<8;i++){
+decoded.push((packed>>(i*2))&3);
+}
+
+let score=0;
+
+questions.forEach((q,i)=>{
+if(decoded[i]===q.c)score++;
+});
+
+let rating;
+
+if(score===8)rating="Ausgezeichnet";
+else if(score>=6)rating="Sehr gut";
+else if(score>=4)rating="Gut";
+else if(score>=2)rating="Weiter üben";
+else rating="Noch Übung nötig";
+
+let rows=questions.map((q,i)=>{
+
+let correct=decoded[i]===q.c;
+
+return `
+<div class="row">
+<b>Frage ${i+1}</b>
+<p>${q.q}</p>
+<p class="${correct?'good':'bad'}">
+${correct?"✓ Richtig":"✗ Falsch"}
+</p>
+<p class="small">Deine Antwort: ${q.a[decoded[i]]}</p>
+<p class="small">Richtige Antwort: ${q.a[q.c]}</p>
+<p class="small">${q.why}</p>
+</div>
+`;
+
+}).join("");
+
+report.innerHTML=`
+<h2>${name}</h2>
+<div class="code">${score} / 8 Punkte</div>
+<h2>${rating}</h2>
+${rows}
+`;
+
+}
+
+</script>
+
+</body>
+</html>
